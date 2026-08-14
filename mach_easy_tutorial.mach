@@ -1,0 +1,1708 @@
+# ========================================
+# Mach 语言教学示例集合
+# ========================================
+# 本文件包含了 ./dep/mach/doc/*.md 和 ./dep/mach/doc/language/*.md 中的主要教学示例
+# 所有示例都有详细注释,便于学习和理解 Mach 语言的各个特性
+# ========================================
+
+# ========================================
+# 1. 基础声明 (val/var, literals, types)
+# ========================================
+
+# val: 不可变绑定,必须初始化
+val pi: f64 = 3.14159;
+val n: i64 = 42;
+
+# var: 可变绑定,可以重新赋值
+var counter: i64 = 0;
+var buf: [256]u8;  # 默认初始化为全零
+
+counter = counter + 1;  # var 可以重新赋值
+
+# ========================================
+# 2. 字面量 (Literals)
+# ========================================
+
+# 数字字面量 - 支持十进制、十六进制、二进制、八进制、科学计数法、带下划线
+val dec: i64 = 42;
+val hex: i64 = 0xDEAD;
+val bin: i64 = 0b1010;
+val oct: i64 = 0o755;
+val sci: f64 = 1.5e10;
+val with_underscores: i64 = 1_000_000;
+
+# 带类型后缀的字面量
+val int_literal: i64 = 42i64;
+val uint_literal: u8 = 255u8;
+val float_literal: f64 = 2.5f64;
+
+# 字符字面量 - 单引号,类型为 u8
+val c: u8 = 'M';
+
+# 字符转义序列
+val newline: u8 = '\n';  # 换行
+val tab: u8 = '\t';      # 制表符
+val backslash: u8 = '\\';
+val quote: u8 = '\'';
+val null_byte: u8 = '\0';
+val hex_escape: u8 = '\xAB';
+
+# 字符串字面量 - 双引号,类型为 *u8,指向数据段的 null-terminated 字节
+val msg: *u8 = "hello, mach\n";
+
+# ========================================
+# 3. 类型系统 (Types)
+# ========================================
+
+# 原始标量类型
+val u8_val: u8 = 255;
+val u16_val: u16 = 65535;
+val u32_val: u32 = 4294967295;
+val u64_val: u64 = 18446744073709551615;
+val i8_val: i8 = -128;
+val i16_val: i16 = -32768;
+val i32_val: i32 = -2147483648;
+val i64_val: i64 = -9223372036854775808;
+val f32_val: f32 = 1.5f32;
+val f64_val: f64 = 2.5;
+val ptr_val: ptr = nil;
+
+# 指针类型 *T
+var x: i64 = 9;
+var p: *i64 = ?x;  # ? 是地址-of 运算符
+val v: i64 = @p;   # @ 是解引用运算符
+
+@p = 11;           # 通过指针写入
+val v2: i64 = @p;  # 通过指针读取
+
+# 数组类型 [N]T - 固定长度
+val a: [4]i64 = [4]i64{1, 2, 3, 4};
+val g: [2][2]i64 = [2][2]i64{ [2]i64{1, 2}, [2]i64{3, 4} };
+
+# 数组长度推断 [_]T - 仅在 #[embed] 中使用
+#[embed("assets/logo.qoi")]
+val LOGO: [_]u8;  # 长度从嵌入文件自动推断
+
+# 函数类型 fun(T1, T2) R
+def BinOp: fun(i64, i64) i64;
+val op: BinOp = add;
+val r: i64 = op(2, 3);
+
+# SIMD 向量类型
+# 注意: 至少 2 个 lane,最多 65535 个 lane
+val f32x4: f32x4 = f32x4{1.0, 2.0, 3.0, 4.0};
+val i32x4: i32x4 = i32x4{1, 2, 3, 4};
+
+# 向量标量访问
+var vec: f32x4 = f32x4{1.0, 2.0, 3.0, 4.0};
+val lane0: f32 = vec[0];  # 读取 lane 0
+vec[3] = 9.0;             # 写入 lane 3
+
+# 处理句柄类型
+#[handle("spirv", "image", TEXEL_F32, DIM_2D, NO_DEPTH, NONARRAYED, SINGLE_SAMPLED, SAMPLED)]
+pub def Texture2D;
+
+# 类型别名
+def bool: u8;
+def usize: u64;
+def isize: i64;
+def str: *u8;
+
+# ========================================
+# 4. 函数声明 (Functions)
+# ========================================
+
+# 基础函数
+pub fun add(a: i64, b: i64) i64 {
+    ret a + b;
+}
+
+# 无返回值的函数
+pub fun bump() {
+    counter = counter + 1;
+}
+
+# 泛型函数
+pub fun identity[T](value: T) T {
+    ret value;
+}
+
+# 泛型构造函数
+pub rec Pair[T, U] {
+    left: T;
+    right: U;
+}
+
+pub fun make_pair[T, U](a: T, b: U) Pair[T, U] {
+    var p: Pair[T, U];
+    p.left = a;
+    p.right = b;
+    ret p;
+}
+
+# 调用泛型函数
+val x: i64 = identity[i64](42);
+val p: Pair[i64, u8] = make_pair[i64, u8](1, 2u8);
+
+# 泛型函数作为值
+val f: fun(i64) i64 = identity[i64];
+val fp: ptr = ?identity[i64];
+ret apply(identity[i64], 42);
+
+# 常量值参数
+val MODE_DOUBLE: u8 = 0;
+val MODE_SQUARE: u8 = 1;
+
+pub fun apply($mode: u8, n: i64) i64 {
+    $if (mode == MODE_DOUBLE) {
+        ret n + n;
+    }
+    $or (mode == MODE_SQUARE) {
+        ret n * n;
+    }
+    ret 0;
+}
+
+# 变长参数包
+pub fun sum(va: ...) i64 {
+    var t: i64 = 0;
+    $each a in va {
+        t = t + a;
+    }
+    ret t;
+}
+
+# 带前缀固定参数的变长参数包
+pub fun bias(base: i64, va: ...) i64 {
+    var t: i64 = base;
+    $each a in va {
+        t = t + a;
+    }
+    ret t;
+}
+
+# 调用变长参数包函数
+sum(1, 2, 3);       # 6
+sum(10, 20);        # 30
+sum();              # 0 - 空包
+
+# 变长参数包的元素计数
+pub fun count(va: ...) i64 {
+    ret va.len::i64;
+}
+
+count(1, 2, 3);     # 3
+count();            # 0
+
+# 变长参数包转发
+pub fun outer(va: ...) i64 {
+    ret sum(va...);
+}
+
+outer(1, 2, 3);     # 将 (1, 2, 3) 转发给 sum
+
+# 泛型 + 变长参数包
+pub fun sink[T](t: T, va: ...) u32 {
+    var sum: u32 = 0;
+    $each a in va {
+        sum = sum + 1u32;
+    }
+    ret sum;
+}
+
+sink[u32](p, 1u32);     # 实例: [u32] over (u32)
+sink[u64](p, 1u32);     # 实例: [u64] over (u32)
+sink[u32](p, 1u32, 2u64);   # 实例: [u32] over (u32, u64)
+
+# ========================================
+# 5. 记录和联合 (Records and Unions)
+# ========================================
+
+# 记录 - 顺序布局,可以有填充
+pub rec Point {
+    x: i64;
+    y: i64;
+}
+
+pub rec Pair[T, U] {
+    left: T;
+    right: U;
+}
+
+# 记录字面量和访问
+val p: Point = Point{ x: 1, y: 2 };
+val q: Pair[i64, u8] = Pair[i64, u8]{ left: 5, right: 6u8 };
+val nx: i64 = p.x;        # 通过 . 访问字段
+val ny: i64 = p.y;
+
+# 联合 - 重叠布局,写入一个字段会覆盖其他字段
+pub uni Number {
+    i: i64;
+    f: f64;
+}
+
+pub uni Maybe[T] {
+    some: T;
+    none: u8;
+}
+
+# 联合字面量
+val n: Number = Number{ i: 42 };
+val f: Number = Number{ f: 3.14 };
+
+# 联合的 size 是最大字段大小 + 对齐填充
+# $size_of(Number) == 8 (i64 的大小)
+# $align_of(Number) == 8 (i64 的对齐要求)
+
+# 带标签的联合 (通过 rec + uni 组合)
+pub rec Value {
+    kind: ValueKind;
+    data: uni { i: i64; f: f64; }
+}
+
+pub def ValueKind: u8;
+
+# 联合的字段不能混合机密性
+# 所有字段都是 ^T (机密) 或所有字段都不是 ^T (公开)
+# 不能混合 ^u64 和 u64
+
+# ========================================
+# 6. 模块导入和导出 (Modules, use, fwd)
+# ========================================
+
+# use - 私有导入
+use std.types.size;             # 绑定模块 'size'; 使用时为 size.usize
+use sz: std.types.size;         # 绑定模块为 'sz'; 使用时为 sz.usize
+use std.types.size.usize;       # 绑定符号 'usize'; 使用时为 usize
+use my_usize: std.types.size.usize;  # 绑定符号为 'my_usize'
+use glfw;                        # 项目 ID 的完整路径: binds glfw 的 [project].module
+
+# fwd - 公开重导出
+fwd impl.Point;                 # 重导出为 'Point'
+fwd Pt: impl.Point;             # 重导出为 'Pt'
+
+# 模块重导出
+fwd demo.alpha;                 # 重导出模块 'alpha'
+fwd deep: demo.deep.beta;       # 重导出模块为 'deep'
+
+# 消费者使用重导出的符号
+lib.alpha.answer();             # 通过模块重导出解析
+
+# ========================================
+# 7. 装饰器 (Decorators)
+# ========================================
+
+# symbol - 符号重命名
+#[symbol("main")]
+fun entry(argc: i64, argv: **u8) i64 {
+    ret 0;
+}
+
+# library - 库绑定 (用于动态链接)
+#[library("ws2_32.dll")]
+ext fun wsa_startup(ver: u16, data: *u8) i32;
+
+# align - 设置对齐
+#[align(64)]
+pub var cache_line: u8 = 0;
+
+#[align($size_of(Pair))]
+pub var g_cmp: u8 = 0;
+
+#[align($align_of(Pair))]
+rec Over { a: u8; }
+
+# packed - 禁用填充
+#[packed]
+rec Header {
+    magic: u8;      # offset 0
+    version: u16;   # offset 1
+    length: u32;    # offset 3
+    checksum: u64;  # offset 7
+}  # $size_of == 15, $align_of == 1
+
+# packed + align 组合
+#[packed] #[align(8)]
+rec Frame { a: u8; b: u32; }  # 字段在 0 和 1; $align_of == 8, $size_of == 8
+
+# packed 不能递归应用到内部类型
+rec Point { x: u8; y: u32; }  # 自然: y 在 4, size 8
+
+#[packed]
+rec Msg { tag: u8; p: Point; }  # p 在 offset 1, size 仍然 8; $size_of(Msg) == 9
+
+# section - 指定段
+#[section(".hottext")] #[symbol("f_hot")]
+fun f_hot(x: i64) i64 {
+    ret x + 1;
+}
+
+#[section(".machsec")] #[symbol("g_sec")]
+pub var g_sec: u64 = 100;
+
+# oblivious - 常数时间边界
+# [oblivious]：这个装饰器 强制编译器在生成机器码时，消除所有依赖数据的分支，并确保 CPU 执行这个函数的时间是绝对恒定的，不管数据相不相等，耗时完全一样。黑客无法通过测量时间来推测数据。
+#[oblivious]
+fun ct_eq(a: ^[8]u8, b: ^[8]u8) u8 {
+    var result: u8 = 0;
+    $each i in 0..8 {
+        result = result | (a[i] ^ b[i]);
+    }
+    ret result;
+}
+
+# scalar - 禁用自动向量化
+# [scalar]：告诉编译器“别自作聪明帮我优化成批量加法指令，老老实实生成最基础的标量加减法机器码”。
+#[scalar]
+fun reference_sum(a: *i64, n: usize) i64 {
+    var total: i64 = 0;
+    var i: usize = 0;
+    for (i < n) {
+        total = total + a[i];
+        i = i + 1;
+    }
+    ret total;
+}
+
+# naked - 无序言/尾声,体按原样写入
+#[naked] #[symbol("_start")]
+fun start() {
+    $if ($mach.build.arch == $mach.arch.x86_64) {
+        asm x86_64 {
+            mov rdi, [rsp]        # argc, 直接从内核栈
+            lea rsi, [rsp+8]      # argv
+            call main
+        }
+    }
+    $or { asm aarch64 { ... } }
+}
+
+# embed - 编译时文件嵌入
+#[embed("../assets/logo.qoi")]
+val LOGO: [_]u8;          # 长度从文件字节计数推断
+
+#[embed("../assets/font.bin")]
+val FONT: [65536]u8;      # 长度固定; 大小变化时构建失败
+
+# embed 必须使用 [_]u8 或 [N]u8
+# 只有 val 可以使用 embed
+# 路径相对于声明源文件解析
+
+# ========================================
+# 8. Comptime 特性 (Comptime)
+# ========================================
+
+# $mach.* - 编译器拥有的命名空间
+val ver: str = $project.version;  # "2.0.0", 来自 [project].version
+$if ($project.target.os == "windows") { ... }  # 声明的 os 字符串
+
+# $sym(args) - comptime 函数调用 (内建函数)
+val sz: i64 = $size_of(i64);      # i64 的大小为 8
+val len: i64 = $length_of(LOGO);  # LOGO 的元素计数
+val al: i64 = $align_of(Pair);    # Pair 的对齐要求
+
+# $type_of(T) - 类型值
+$type_name(T)           # 类型 T 的拼写,作为 NUL-终止字符串
+$val: i64 = 42;
+$if ($type_of(val) == i64) { ... }
+
+# $fields(T) - 记录/联合的字段序列
+$fields(T)              # 类型 T 的 comptime 字段序列
+v.[f]                   # 通过字段描述符投影
+
+rec Pair { x: i64; y: i64; }
+
+fun sum(p: Pair) i64 {
+    var total: i64 = 0;
+    $each f in $fields(Pair) {
+        total = total + p.[f];  # p.x 在迭代 1, p.y 在迭代 2
+    }
+    ret total;
+}
+
+# 字段描述符属性
+fun offsum(m: Pair) i64 {
+    var s: i64 = 0;
+    $each f in $fields(Pair) {
+        s = s + f.offset::i64;    # 0 + 8 = 8
+    }
+    ret s;
+}
+
+# 嵌套 $each
+fun cross(p: Pair, q: Pair) i64 {
+    var t: i64 = 0;
+    $each f in $fields(Pair) {
+        $each g in $fields(Pair) {
+            t = t + p.[f] * q.[g];
+        }
+    }
+    ret t;
+}
+
+# $is_secret(T) - 类型是否包含机密
+$each f in $fields(T) {
+    $if ($is_secret(f.type)) { ... }  # redact, refuse, or compare in constant time
+    $or { ... }                        # 普通公开字段
+}
+
+# $is_pointer(T) - 类型是否是引用
+# $pointee_of(T) - 解引用引用
+# $is_record(T) - 类型是否是记录
+# $is_union(T) - 类型是否是联合
+
+# $each - comptime 展开
+$each f in $fields(T) { ... }    # 每个字段一次
+$each a in va { ... }            # 每个包元素一次
+$each x in ARR { ... }           # 每个数组元素一次
+
+$each N in ES {
+    s = s + N;  # ES 是一个常量数组
+}
+
+# $each 在泛型中递归
+rec Node { value: i64; next: *Inner; }
+
+fun traverse(n: *Node) i64 {
+    var total: i64 = 0;
+    $each f in $fields(Node) {
+        $if ($is_pointer(f.type)) {
+            $each g in $fields($pointee_of(f.type)) {
+                total = total + (@(n.[f])).[g];
+            }
+        }
+        $or { total = total + n.[f]; }
+    }
+    ret total;
+}
+
+# ========================================
+# 9. Comptime 控制流
+# ========================================
+
+# $if / $or - comptime 条件分支
+$if ($mach.build.os == $mach.os.linux) {
+    use full.os.linux;
+}
+$or ($mach.build.os == $mach.os.windows) {
+    use full.os.windows;
+}
+$or {
+    $error("unsupported OS");
+}
+
+# 带常量参数的 $if / $or
+$if (mode == MODE_DOUBLE) {
+    ret n + n;
+}
+$or (mode == MODE_SQUARE) {
+    ret n * n;
+}
+
+# 在函数体中使用
+pub fun pick_op($mode: u8, a: i64, b: i64) i64 {
+    $if (mode == MODE_DOUBLE) {
+        ret a + b;
+    }
+    $or (mode == MODE_SAFE) {
+        ret a + b;
+    }
+}
+
+# $if 在声明作用域的执行时机
+$if ($size_of(MeshUniforms) != 64) {
+    $error("MeshUniforms must be 64 bytes");
+}
+$or {
+    val PADDING: u32 = 0;
+}
+
+# $if 在函数体内总是在类型检查时决定
+fun f(k: i64) i64 {
+    $if (k > 0) {
+        ret k;
+    }
+    $or {
+        ret 0;
+    }
+}
+
+# ========================================
+# 10. 运算符 (Operators)
+# ========================================
+
+# 算术运算
+val s: i64 = 10 + 20;
+val q: f32 = 1.5 * 2.0;
+
+# 取模
+val r: f64 = 5.5 % 3.0;  # 2.5 (有符号取模)
+
+# 位运算
+val x: i64 = (a & b) | (c ^ d);
+val y: i64 = x << 2;
+
+# 比较运算
+val eq: u8 = (x == y);   # u8 (1 或 0)
+val neq: u8 = (x != y);
+val lt: u8 = (x < y);
+val gt: u8 = (x > y);
+val le: u8 = (x <= y);
+val ge: u8 = (x >= y);
+
+# 逻辑运算
+val ok: u8 = (x > 0) && (y < 100);  # 短路求值
+val not_ok: u8 = (x > 0) || (y < 100);
+
+# 一元运算
+val neg: i64 = -x;
+val bnot: i64 = ~x;
+val lnot: u8 = !x;  # 逻辑 NOT
+
+# 指针运算
+var p: *i64 = ?x;  # address-of
+val v: i64 = @p;   # dereference
+
+# 转换运算
+val a: u64 = some_i64::u64;     # 值转换 (resize)
+val p: *u8 = some_ptr::*u8;     # 指针值重类型化
+
+# 值转换
+val n: u64 = 1.5::u64;          # 1 (float -> int 转换)
+val b: u64 = 1.5:~u64;          # 0x3FF8000000000000 (原始 IEEE-754 位)
+val f: f64 = b:~f64;            # 1.5 (位读回为 float)
+
+# 位重新解释不能添加或删除 ^ 机密限定符
+# 不能擦除 ^T 到 ptr
+
+# SIMD 向量运算
+val a: f32x4 = f32x4{1.0, 2.0, 3.0, 4.0};
+val b: f32x4 = f32x4{4.0, 3.0, 2.0, 1.0};
+val sum: f32x4 = a + b;       # lane-wise -> {5.0, 5.0, 5.0, 5.0}
+val mask: u32x4 = a < b;       # -> {0xFFFFFFFF, 0xFFFFFFFF, 0, 0}
+
+val m: i32x4 = i32x4{1, 2, 3, 4};
+val n: i32x4 = i32x4{4, 3, 2, 1};
+val z: i32x4 = (m & n) ^ n;    # lane-wise 位运算
+
+# ========================================
+# 11. 控制流语句 (Statements)
+# ========================================
+
+# if / or
+if (cond) {
+    ...
+} or (cond) {
+    ...
+} or {
+    ...  # 最终 else
+}
+
+# for 循环
+var i: i64 = 0;
+for (i < 10) {
+    i = i + 1;
+}
+
+# 循环控制
+for (i < 10) {
+    if (i == 3) { cnt; }  # 继续下一次迭代
+    if (i == 8) { brk; }  # 退出循环
+}
+
+# ret - 返回
+ret expr;                   # 返回一个值
+ret;                        # 从 void 函数返回
+
+# fin - 延迟块
+{
+    fin { counter = counter - 1; }
+    fin { counter = counter * 2; }
+    # ... 代码 ...
+}
+# 在块退出时,按相反顺序执行 fins: counter * 2 先,然后 counter - 1
+
+# 函数中的 fin
+fun f() i64 {
+    fin { cleanup(); }
+    # ... 代码 ...
+}
+
+# for 循环中的 fin
+for (i < 10) {
+    fin { cleanup(); }  # 每次迭代结束时执行
+}
+
+# brk / cnt 中的 fin
+for (i < 10) {
+    if (i == 5) { brk; }  # 退出前执行所有 fins
+}
+for (i < 10) {
+    if (i == 5) { cnt; }  # 继续前执行 fins
+}
+
+# ret 中的 fin
+ret expr;  # 先完全计算返回表达式,然后按顺序执行所有 fins,最后返回值
+
+# ========================================
+# 12. 外部函数 (External Functions)
+# ========================================
+
+# ext fun - C ABI 外部函数声明
+pub ext fun libc_write(fd: i64, buf: *u8, n: i64) i64;
+ext fun strlen(s: *u8) i64;  # 私有,文件局部
+
+# C 变长参数导入
+ext fun open(path: *u8, flags: i32, ...) i32;
+ext fun fcntl(fd: i32, cmd: i32, ...) i32;
+
+# 变长参数的尾参数
+var c: u8 = 65;
+var f: f32 = 1.5;
+log(fmt, c);  # 错误: 需要显式转换
+log(fmt, c::i32);  # 正确
+log(fmt, f);  # 错误
+log(fmt, f::f64);  # 正确
+
+# 变长参数在不同目标上的传递
+# Apple arm64: 每个尾参数都通过栈传递
+# 其他 AAPCS64: 先寄存器后栈
+# System V x86_64: 先寄存器后栈,AL 设置为使用的向量寄存器数
+# Microsoft x64: 先寄存器后栈,浮点尾参数同时出现在整数寄存器中
+
+# 符号名称
+#[symbol("write")]
+pub ext fun libc_write(fd: i64, buf: *u8, n: i64) i64;
+
+# 在 Darwin 上,C ABI 前缀下划线,所以需要在符号装饰器中指定
+$if ($mach.build.os == $mach.os.darwin) {
+    #[symbol("_qz_answer")]
+    ext fun qz_answer() i32;
+} $or {
+    ext fun qz_answer() i32;
+}
+
+# 库绑定
+#[library("ws2_32.dll")]
+ext fun WSAStartup(ver: u16, data: *u8) i32;
+
+# 库绑定 + 符号重命名
+#[library("ws2_32.dll")] #[symbol("socket")]
+ext fun ws2_socket(af: i32, kind: i32, proto: i32) i64;
+
+# 向量参数和 C ABI
+# 在 Microsoft x64 上,128 位向量参数通过引用传递
+# 其他目标: 与内部约定相同
+
+# 外部对象链接
+# 命令行
+mach build . path/to/libfoo.o
+mach build . path/to/libfoo.a
+mach build . path/to/libfoo.so
+mach build . -L build/libs -l foo
+
+# manifest
+[link.foo-unix]
+source = "system"
+name = "foo"
+library = "foo"
+os = ["linux", "darwin"]
+isa = "*"
+abi = "*"
+export = false
+
+# ========================================
+# 13. Comptime Mach 命名空间
+# ========================================
+
+# $mach.build.* - 构建上下文
+val is_linux: u8 = $mach.build.os == $mach.os.linux;
+val is_windows: u8 = $mach.build.os == $mach.os.windows;
+val is_darwin: u8 = $mach.build.os == $mach.os.darwin;
+val is_x86_64: u8 = $mach.build.arch == $mach.arch.x86_64;
+val is_aarch64: u8 = $mach.build.arch == $mach.arch.aarch64;
+val is_riscv64: u8 = $mach.build.arch == $mach.arch.riscv64;
+
+# 构建模式
+val is_debug: u8 = $mach.build.mode == $mach.mode.debug;
+val is_release: u8 = $mach.build.mode == $mach.mode.release;
+
+# 指针宽度
+val ptr_width: u64 = $mach.build.pointer_width;
+
+# PIE (位置无关可执行)
+val is_pie: u8 = $mach.build.pie;
+
+# 编译器版本
+val compiler_name: *u8 = $mach.compiler.name;
+val compiler_version: *u8 = $mach.compiler.version;
+val version_str: *u8 = $mach.version;
+val major: i64 = $mach.version.major;
+val minor: i64 = $mach.version.minor;
+val patch: i64 = $mach.version.patch;
+
+# 将 $mach.* 读取作为运行时常量
+pub val IS_LINUX: u8 = $mach.build.os == $mach.os.linux;
+pub val COMPILER: *u8 = $mach.compiler.name;
+
+# $mach.os.* - 操作系统标签
+# $mach.os.linux, $mach.os.darwin, $mach.os.windows, $mach.os.freestanding
+
+# $mach.arch.* - 架构标签
+# $mach.arch.x86_64, $mach.arch.aarch64, $mach.arch.riscv64, $mach.arch.riscv32
+
+# $mach.abi.* - ABI 标签
+# $mach.abi.sysv, $mach.abi.win64, $mach.abi.aapcs64, $mach.abi.lp64, $mach.abi.lp64f, $mach.abi.lp64d, $mach.abi.ilp32, $mach.abi.ilp32f, $mach.abi.ilp32d
+
+# $mach.mode.* - 构建模式标签
+# $mach.mode.debug, $mach.mode.release
+
+# ========================================
+# 14. Comptime 内建函数 (Intrinsics)
+# ========================================
+
+# $size_of(T) - 类型的大小
+val i64_size: i64 = $size_of(i64);      # 8
+val pair_size: i64 = $size_of(Pair[i64, u8]);  # 16 (i64 + u8 + 8 字节填充)
+val ptr_size: i64 = $size_of(ptr);       # 指针大小
+
+# $align_of(T) - 类型的对齐要求
+val i64_align: i64 = $align_of(i64);    # 8
+val pair_align: i64 = $align_of(Pair[i64, u8]);  # 8
+val u8_align: i64 = $align_of(u8);      # 1
+
+# $length_of(T) - 数组/向量的长度
+val arr_len: i64 = $length_of([4]i64);  # 4
+val vec_len: i64 = $length_of(f32x4);   # 4
+
+# $offset_of(T, field) - 字段在类型中的偏移
+val offset_x: i64 = $offset_of(Pair[i64, u8], x);  # 0
+val offset_y: i64 = $offset_of(Pair[i64, u8], y);  # 8
+
+# $type_of(expr) - 表达式的类型值
+val num: i64 = 42;
+$type_name(T)           # 类型 T 的拼写
+$type_of(num)           # 返回 i64 类型值
+
+# $type_of 用于类型比较
+$if ($type_of(arg) == i64) { write_i64(w, arg); }
+$or ($type_of(arg) == str) { write_str(w, arg); }
+$or { $error("unsupported type"); }
+
+# $is_record(T) - 是否是记录类型
+$val: rec Point { x: i64; y: i64; };
+$if ($is_record(val.type)) { ... }
+
+# $is_union(T) - 是否是联合类型
+$if ($is_union(val.type)) { ... }
+
+# $is_pointer(T) - 是否是指针类型
+$if ($is_pointer(val.type)) { ... }
+
+# $is_secret(T) - 是否包含机密数据
+# ^T 返回 true
+# *^T 返回 false (公开指针指向机密)
+# [4]^u8 返回 false (公开数组)
+$if ($is_secret(val.type)) { ... }
+
+# $type_name(T) - 类型名称的拼写
+val name: *u8 = $type_name(i64);  # "i64"
+val pair_name: *u8 = $type_name(Pair[i64, u8]);  # "Pair[i64, u8]"
+
+# $error(msg) - 编译时错误
+$if (condition) {
+    $error("this condition is always true");
+}
+
+# ========================================
+# 15. 类型比较
+# ========================================
+
+# 类型值比较
+$if ($type_of(x) == i64) { ... }
+$if ($type_of(x) != i64) { ... }
+
+# 类型比较在泛型中
+fun process[T](x: T) {
+    $if ($type_of(x) == i64) {
+        ret "i64";
+    }
+    $or {
+        ret "other";
+    }
+}
+
+# $is_record, $is_union, $is_pointer 等作为类型谓词
+$if ($is_record(T)) {
+    $each f in $fields(T) { ... }
+} $or {
+    # 不是记录
+}
+
+# ========================================
+# 16. 函数指针
+# ========================================
+
+# 函数类型定义
+def Add: fun(i64, i64) i64;
+def Compare: fun(i64, i64) i8;
+
+# 函数值
+val add: Add = add;  # 函数名称是值
+val compare: Compare = compare;
+
+# 调用函数值
+val sum: i64 = add(10, 20);
+
+# 函数指针地址
+val add_ptr: ptr = ?add;
+val compare_ptr: ptr = ?compare;
+
+# 通过指针调用
+var result: i64 = (add_ptr)(10, 20);
+
+# 函数指针作为参数
+pub fun apply(f: fun(i64, i64) i64, a: i64, b: i64) i64 {
+    ret f(a, b);
+}
+
+# 函数指针作为返回值
+pub fun make_adder(factor: i64) fun(i64) i64 {
+    ret fun(x: i64) i64 {
+        ret x + factor;
+    };
+}
+
+# 闭包捕获
+pub fun make_counter() fun() i64 {
+    var count: i64 = 0;
+    ret fun() i64 {
+        count = count + 1;
+        ret count;
+    };
+}
+
+# ========================================
+# 17. 类型别名 (Type Aliases)
+# ========================================
+
+# def 定义类型别名
+def bool: u8;
+def usize: u64;
+def isize: i64;
+def str: *u8;
+def byte: u8;
+def i32: i32;
+
+# 使用别名
+var flag: bool = true;
+var size: usize = 100;
+var name: str = "hello";
+var value: i32 = 42;
+
+# 类型别名可以带泛型
+def List[T]: rec { head: T; tail: *List[T]; };
+
+# 使用带泛型的类型别名
+var int_list: List[i64];
+
+# ========================================
+# 18. 测试 (Tests)
+# ========================================
+
+test "add: positive numbers" {
+    if (add(5, 3) != 8) { ret 1; }
+    ret 0;
+}
+
+test "add: negative numbers" {
+    if (add(-5, -3) != -8) { ret 1; }
+    ret 0;
+}
+
+test "identity: generic" {
+    if (identity[i64](42) != 42) { ret 1; }
+    if (identity[f64](3.14) != 3.14) { ret 1; }
+    ret 0;
+}
+
+test "sum: variadic" {
+    if (sum(1, 2, 3, 4, 5) != 15) { ret 1; }
+    if (sum(10, 20) != 30) { ret 1; }
+    if (sum() != 0) { ret 1; }
+    ret 0;
+}
+
+test "count: variadic length" {
+    if (count(1, 2, 3) != 3) { ret 1; }
+    if (count() != 0) { ret 1; }
+    ret 0;
+}
+
+test "sumc: heterogeneous variadic" {
+    if (sumc(1000, 50::i32, 7::u8, 200::i16) != 1257) { ret 1; }
+    ret 0;
+}
+
+test "sumdbl: cross-module pack" {
+    if (sumdbl(1, 2, 3) != 6) { ret 1; }
+    ret 0;
+}
+
+test "cross: nested $each" {
+    var result: i64 = cross(
+        Pair[i64, i64]{ x: 1, y: 2 },
+        Pair[i64, i64]{ x: 3, y: 4 }
+    );
+    if (result != 11) { ret 1; }  # 1*3 + 2*4 = 3 + 8 = 11
+    ret 0;
+}
+
+test "pick_op: mode_double" {
+    if (pick_op(MODE_DOUBLE, 5, 3) != 8) { ret 1; }
+    ret 0;
+}
+
+test "pick_op: mode_square" {
+    if (pick_op(MODE_SQUARE, 5, 3) != 25) { ret 1; }
+    ret 0;
+}
+
+test "val/var: immutability" {
+    val pi: f64 = 3.14;
+    # pi = 3.15;  # 错误: val 不能重新赋值
+    ret 0;
+}
+
+test "val/var: mutability" {
+    var counter: i64 = 0;
+    counter = counter + 1;
+    if (counter != 1) { ret 1; }
+    ret 0;
+}
+
+# ========================================
+# 19. 表达式和运算符组合
+# ========================================
+
+# 算术表达式
+val a: i64 = 10;
+val b: i64 = 20;
+val c: i64 = (a + b) * (a - b);  # (30) * (-10) = -300
+
+# 比较表达式
+val is_greater: u8 = (a > b);
+val is_equal: u8 = (a == b);
+val is_less_or_equal: u8 = (a <= b);
+
+# 逻辑表达式
+val ok: u8 = (a > 0) && (b < 100);
+val not_ok: u8 = (a < 0) || (b > 100);
+
+# 位运算
+val x: i64 = 0b1010;
+val y: i64 = 0b1100;
+val and: i64 = x & y;  # 0b1000
+val or: i64 = x | y;   # 0b1110
+val xor: i64 = x ^ y;  # 0b0110
+
+# 指针和引用
+var num: i64 = 42;
+var ptr: *i64 = ?num;
+var deref: i64 = @ptr;
+
+# 转换
+val int_from_float: i64 = 1.5::i64;  # 1
+val float_from_int: f64 = 42::f64;
+val bit_cast: u64 = 1.5:~u64;  # 0x3FF8000000000000
+
+# 数组访问
+var arr: [4]i64 = [4]i64{1, 2, 3, 4};
+val first: i64 = arr[0];  # 1
+val last: i64 = arr[3];   # 4
+
+# 数组字面量
+val empty: [0]i64 = [0]i64{};
+val filled: [3]i64 = [3]i64{10, 20, 30};
+
+# 嵌套数组
+var matrix: [2][2]i64 = [2][2]i64{
+    [2]i64{1, 2},
+    [2]i64{3, 4}
+};
+
+# 记录字面量和访问
+val point: rec Point { x: 10, y: 20 };
+val x_val: i64 = point.x;
+val y_val: i64 = point.y;
+
+# ========================================
+# 20. 指针运算
+# ========================================
+
+# 指针算术
+var arr: [4]i64 = [4]i64{1, 2, 3, 4};
+var p: *i64 = ?arr;
+val first: i64 = @p;        # 1
+p = p + 1;
+val second: i64 = @p;       # 2
+p = p - 1;
+val back_to_first: i64 = @p;  # 1
+
+# 指针比较
+val is_same: u8 = (p == ?arr);
+val is_not_same: u8 = (p != ?arr);
+val is_null: u8 = (p == nil);
+
+# 指针与 nil 比较
+var p2: *i64 = nil;
+val is_nil: u8 = (p2 == nil);
+var ptr_val: *i64 = ?arr;
+val is_not_nil: u8 = (ptr_val != nil);
+
+# ========================================
+# 21. 内联汇编 (Inline Assembly)
+# ========================================
+
+# x86_64 通用指令
+$if ($mach.build.arch == $mach.arch.x86_64) {
+    asm x86_64 {
+        mov rax, 1        # rax = 1
+        mov rbx, 2        # rbx = 2
+        add rax, rbx      # rax = rax + rbx = 3
+        ret
+    }
+}
+
+# x86_64 寄存器操作
+$if ($mach.build.arch == $mach.arch.x86_64) {
+    asm x86_64 {
+        mov rax, [rsp]    # 从栈读取
+        mov [rsp+8], rax  # 写入栈
+        add rsp, 16       # 栈指针移动
+    }
+}
+
+# x86_64 系统调用
+$if ($mach.build.arch == $mach.arch.x86_64) {
+    asm x86_64 {
+        mov rax, 60       # sys_exit
+        mov rdi, 0        # exit code 0
+        syscall
+    }
+}
+
+# aarch64 通用指令
+$if ($mach.build.arch == $mach.arch.aarch64) {
+    asm aarch64 {
+        mov x0, 1
+        mov x1, 2
+        add x0, x0, x1
+        ret
+    }
+}
+
+# aarch64 系统调用
+$if ($mach.build.arch == $mach.arch.aarch64) {
+    asm aarch64 {
+        mov x8, 93        # sys_exit
+        mov x0, 0
+        svc #0
+    }
+}
+
+# riscv64 通用指令
+$if ($mach.build.arch == $mach.arch.riscv64) {
+    asm riscv64 {
+        addi a0, a0, 1
+        addi a1, a1, 2
+        add a0, a0, a1
+        ret
+    }
+}
+
+# riscv64 系统调用
+$if ($mach.build.arch == $mach.arch.riscv64) {
+    asm riscv64 {
+        addi a7, zero, 93  # sys_exit
+        addi a0, zero, 0
+        ecall
+    }
+}
+
+# x86_64 循环
+$if ($mach.build.arch == $mach.arch.x86_64) {
+    asm x86_64 {
+        mov rsi, 0         # 初始化计数器
+        mov rdi, 100       # 循环条件
+    loop_start:
+        cmp rsi, rdi
+        jge loop_end
+        add rsi, 1
+        jmp loop_start
+    loop_end:
+        mov rax, rsi       # 结果在 rax
+    }
+}
+
+# x86_64 条件分支
+$if ($mach.build.arch == $mach.arch.x86_64) {
+    asm x86_64 {
+        mov rax, 0
+        cmp rax, 0
+        jne is_true
+        mov rax, 1
+        jmp done
+    is_true:
+        mov rax, 2
+    done:
+        ret
+    }
+}
+
+# x86_64 原始编码
+$if ($mach.build.arch == $mach.arch.x86_64) {
+    asm x86_64 {
+        .byte 0x0f, 0x01, 0xd0    # xgetbv
+    }
+}
+
+# aarch64 原始编码
+$if ($mach.build.arch == $mach.arch.aarch64) {
+    asm aarch64 {
+        .word 0xd53be040          # mrs x0, cntvct_el0
+    }
+}
+
+# 声明原始编码的效果
+$if ($mach.build.arch == $mach.arch.x86_64) {
+    asm x86_64 {
+        mov rax, [rsp]
+        .byte 0x0f, 0x01, 0xd0 :: writes(rax, rdx)
+    }
+}
+
+# aarch64 系统寄存器
+$if ($mach.build.arch == $mach.arch.aarch64) {
+    asm aarch64 {
+        mrs x0, cntvct_el0        # 虚拟计数器
+        mrs x1, CNTFRQ_EL0        # 频率
+        msr vbar_el1, x2          # 异常向量基址
+        msr daifset, 0xf          # 屏蔽所有中断
+    }
+}
+
+# aarch64 异常通道
+$if ($mach.build.arch == $mach.arch.aarch64) {
+    asm aarch64 {
+        svc 0                     # 内核,EL1
+        hvc 0                     # 虚拟化,EL2
+        smc 0                     # 安全监控,EL3
+    }
+}
+
+# aarch64 等待指令
+$if ($mach.build.arch == $mach.arch.aarch64) {
+    asm aarch64 {
+        wfi                       # 等待中断
+        wfe                       # 等待事件
+    }
+}
+
+# ========================================
+# 22. 更多 rec/uni 示例
+# ========================================
+
+# 嵌套记录
+rec Matrix {
+    rows: [4]f32x4;
+    cols: [4]f32x4;
+}
+
+# 带泛型的记录
+rec Optional[T] {
+    some: T;
+    none: u8;
+}
+
+# 使用泛型记录
+var int_opt: Optional[i64];
+var str_opt: Optional[str];
+
+# 记录作为参数
+pub fun point_distance(p1: Point, p2: Point) f64 {
+    var dx: f64 = p1.x::f64 - p2.x::f64;
+    var dy: f64 = p1.y::f64 - p2.y::f64;
+    ret (dx * dx + dy * dy)::f64;
+}
+
+# 记录作为返回值
+pub fun make_point(x: i64, y: i64) Point {
+    ret Point{ x: x, y: y };
+}
+
+# 联合作为参数
+pub fun print_number(n: Number) {
+    $if (n.i != 0) {
+        log("int");
+    }
+    $or {
+        log("float");
+    }
+}
+
+# 联合作为返回值
+pub fn get_number(kind: u8) Number {
+    $if (kind == 0) {
+        ret Number{ i: 42 };
+    }
+    $or {
+        ret Number{ f: 3.14 };
+    }
+}
+
+# ========================================
+# 23. 变长参数包更多示例
+# ========================================
+
+# 前缀固定参数 + 变长参数包
+pub fun prefix_sum(first: i64, va: ...) i64 {
+    var total: i64 = first;
+    $each a in va {
+        total = total + a;
+    }
+    ret total;
+}
+
+# 变长参数包转发
+pub fun sum_all(va: ...) i64 {
+    var total: i64 = 0;
+    $each a in va {
+        total = total + a;
+    }
+    ret total;
+}
+
+pub fun sum_with_prefix(prefix: i64, va: ...) i64 {
+    ret prefix + sum_all(va...);
+}
+
+# 多种类型混合的变长参数包
+pub fun sum_mixed(va: ...) i64 {
+    var total: i64 = 0;
+    $each a in va {
+        total = total + a::i64;
+    }
+    ret total;
+}
+
+# 泛型变长参数包
+pub fn average[T](values: T, va: ...) f64 {
+    var sum: T = values;
+    var count: i64 = 1;
+    $each a in va {
+        sum = sum + a;
+        count = count + 1;
+    }
+    ret sum::f64 / count::f64;
+}
+
+# 变长参数包作为函数参数
+pub fn call_with_args(f: fun(i64, i64) i64, a: i64, b: i64) i64 {
+    ret f(a, b);
+}
+
+# 变长参数包和递归
+pub fn recursive_sum(va: ...) i64 {
+    var total: i64 = 0;
+    $each a in va {
+        total = total + a;
+    }
+    ret total;
+}
+
+# 变长参数包和累加器
+pub fn sum_with_accumulator(acc: i64, va: ...) i64 {
+    var total: i64 = acc;
+    $each a in va {
+        total = total + a;
+    }
+    ret total;
+}
+
+# ========================================
+# 24. 作用域和块
+# ========================================
+
+# 块作用域
+{
+    var local: i64 = 10;
+    val const_local: i64 = 20;
+    log("local");
+}
+
+# 块内的 val/var
+fun f() i64 {
+    var x: i64 = 10;
+    {
+        var x: i64 = 20;  # 隐藏外层 x
+        log(x);  # 20
+    }
+    log(x);  # 10
+    ret x;
+}
+
+# 嵌套块和 fin
+fun nested_blocks() i64 {
+    var outer: i64 = 0;
+    {
+        var inner: i64 = 1;
+        fin {
+            log("inner fin");
+        }
+        {
+            var inner2: i64 = 2;
+            fin {
+                log("inner2 fin");
+            }
+        }
+    }
+    fin {
+        log("outer fin");
+    }
+    ret 0;
+}
+
+# 函数中的块
+fun function_blocks() i64 {
+    var result: i64 = 0;
+    {
+        result = result + 10;
+    }
+    {
+        result = result + 20;
+    }
+    ret result;
+}
+
+# ========================================
+# 25. 条件编译
+# ========================================
+
+# 基于架构的条件编译
+$if ($mach.build.arch == $mach.arch.x86_64) {
+    asm x86_64 { ... }
+}
+$or ($mach.build.arch == $mach.arch.aarch64) {
+    asm aarch64 { ... }
+}
+$or {
+    $error("unsupported architecture");
+}
+
+# 基于操作系统的条件编译
+$if ($mach.build.os == $mach.os.linux) {
+    use linux_specific;
+}
+$or ($mach.build.os == $mach.os.darwin) {
+    use darwin_specific;
+}
+$or {
+    $error("unsupported OS");
+}
+
+# 基于构建模式的条件编译
+$if ($mach.build.mode == $mach.mode.release) {
+    # 优化代码
+    #[inline]
+    fun fast_path(x: i64) i64 {
+        ret x * 2;
+    }
+} $or {
+    # 调试代码
+    fun fast_path(x: i64) i64 {
+        log("fast_path called");
+        ret x * 2;
+    }
+}
+
+# 基于运行时常量的条件编译
+pub val USE_FAST_MATH: u8 = 1;
+
+fun math_op(x: i64, y: i64) i64 {
+    $if (USE_FAST_MATH == 1) {
+        ret x + y;
+    }
+    $or {
+        ret x + y;  # 相同,但实际编译不同
+    }
+}
+
+# ========================================
+# 26. 更多表达式示例
+# ========================================
+
+# 一元表达式
+val neg: i64 = -42;
+val bnot: i64 = ~0xFF;
+val lnot: u8 = !1;
+
+# 赋值表达式
+var a: i64 = 10;
+var b: i64 = a;  # 赋值作为表达式
+
+# 复合表达式
+val c: i64 = (a = b + 1) + 2;  # a = 11, c = 13
+
+# 比较链
+val is_valid: u8 = (x >= 0) && (x < 100);
+
+# 逻辑短路
+val safe_divide: u8 = (y != 0) && ((x / y) > 0);
+
+# 逗号表达式 (在 Mach 中,逗号不是表达式,需要用块)
+fun comma_like() i64 {
+    var a: i64 = 10;
+    var b: i64 = 20;
+    var c: i64 = 30;
+    ret c;
+}
+
+# ========================================
+# 27. 递归函数
+# ========================================
+
+# 递归计算阶乘
+pub fun factorial(n: i64) i64 {
+    $if (n <= 1) {
+        ret 1;
+    }
+    $or {
+        ret n * factorial(n - 1);
+    }
+}
+
+# 递归计算斐波那契数列
+pub fun fib(n: i64) i64 {
+    $if (n <= 1) {
+        ret n;
+    }
+    $or {
+        ret fib(n - 1) + fib(n - 2);
+    }
+}
+
+# 递归计算最大值
+pub fun max(a: i64, b: i64) i64 {
+    $if (a >= b) {
+        ret a;
+    }
+    $or {
+        ret b;
+    }
+}
+
+# 递归计算数组求和
+pub fun array_sum(arr: [4]i64, i: i64) i64 {
+    $if (i >= 4) {
+        ret 0;
+    }
+    $or {
+        ret arr[i] + array_sum(arr, i + 1);
+    }
+}
+
+# 递归查找
+pub fun binary_search(arr: [4]i64, target: i64, low: i64, high: i64) i64 {
+    $if (low > high) {
+        ret -1;
+    }
+    $or {
+        var mid: i64 = (low + high) / 2;
+        $if (arr[mid] == target) {
+            ret mid;
+        }
+        $or ($if (arr[mid] < target)) {
+            ret binary_search(arr, target, mid + 1, high);
+        }
+        $or {
+            ret binary_search(arr, target, low, mid - 1);
+        }
+    }
+}
+
+# ========================================
+# 28. 数组和向量操作
+# ========================================
+
+# 数组初始化
+var arr: [4]i64 = [4]i64{1, 2, 3, 4};
+
+# 数组遍历
+fun array_iterate(arr: [4]i64) i64 {
+    var sum: i64 = 0;
+    var i: i64 = 0;
+    for (i < 4) {
+        sum = sum + arr[i];
+        i = i + 1;
+    }
+    ret sum;
+}
+
+# 数组复制
+fun array_copy(src: [4]i64) [4]i64 {
+    var dst: [4]i64;
+    var i: i64 = 0;
+    for (i < 4) {
+        dst[i] = src[i];
+        i = i + 1;
+    }
+    ret dst;
+}
+
+# 向量运算
+val vec1: f32x4 = f32x4{1.0, 2.0, 3.0, 4.0};
+val vec2: f32x4 = f32x4{4.0, 3.0, 2.0, 1.0};
+val vec_sum: f32x4 = vec1 + vec2;
+val vec_diff: f32x4 = vec1 - vec2;
+val vec_mul: f32x4 = vec1 * vec2;
+
+# 向量点积
+fun vector_dot(a: f32x4, b: f32x4) f32 {
+    var sum: f32 = 0.0;
+    var i: i64 = 0;
+    for (i < 4) {
+        sum = sum + a[i]::f32 * b[i]::f32;
+        i = i + 1;
+    }
+    ret sum;
+}
+
+# 向量归一化
+fun vector_normalize(v: f32x4) f32x4 {
+    var len: f32 = vector_dot(v, v);
+    $if (len == 0.0) {
+        ret f32x4{0.0, 0.0, 0.0, 0.0};
+    }
+    $or {
+        var factor: f32 = 1.0 / len;
+        var result: f32x4 = f32x4{0.0, 0.0, 0.0, 0.0};
+        var i: i64 = 0;
+        for (i < 4) {
+            result[i] = v[i] * factor;
+            i = i + 1;
+        }
+        ret result;
+    }
+}
+
+# ========================================
+# 29. 错误处理 (通过返回值)
+# ========================================
+
+# 返回错误代码
+pub fun divide(a: i64, b: i64) i64 {
+    $if (b == 0) {
+        ret -1;  # 错误代码
+    }
+    $or {
+        ret a / b;
+    }
+}
+
+# 使用错误代码
+fun safe_divide(a: i64, b: i64) i64 {
+    var result: i64 = divide(a, b);
+    $if (result == -1) {
+        log("division by zero");
+        ret 0;
+    }
+    $or {
+        ret result;
+    }
+}
+
+# 返回 Option 类型 (模拟)
+pub rec Option[T] {
+    some: T;
+    none: u8;
+}
+
+pub fun safe_divide_option(a: i64, b: i64) Option[i64] {
+    $if (b == 0) {
+        ret Option[i64]{ some: 0, none: 0 };
+    }
+    $or {
+        ret Option[i64]{ some: a / b, none: 0 };
+    }
+}
+
+# 使用 Option
+fun process_division(a: i64, b: i64) i64 {
+    var result: Option[i64] = safe_divide_option(a, b);
+    $if (result.some != 0) {
+        ret result.some;
+    }
+    $or {
+        log("error");
+        ret 0;
+    }
+}
+
+# ========================================
+# 30. 性能优化技巧
+# ========================================
+
+# 使用 const 常量避免重复计算
+pub val PI: f64 = 3.14159;
+pub val TWO_PI: f64 = PI * 2.0;
+
+fun circle_area(radius: f64) f64 {
+    ret PI * radius * radius;
+}
+
+# 使用 inline 优化小函数
+#[inline]
+fun square(x: i64) i64 {
+    ret x * x;
+}
+
+# 使用 const 参数避免重复计算
+fun power(base: i64, exp: i64) i64 {
+    $if (exp == 0) {
+        ret 1;
+    }
+    $or ($if (exp == 1)) {
+        ret base;
+    }
+    $or {
+        var half: i64 = power(base, exp / 2);
+        $if (exp % 2 == 0) {
+            ret half * half;
+        }
+        $or {
+            ret half * half * base;
+        }
+    }
+}
+
+# 使用寄存器变量 (通过局部变量)
+fun compute() i64 {
+    var a: i64 = 10;
+    var b: i64 = 20;
+    var c: i64 = a + b;
+    var d: i64 = c * 2;
+    ret d;
+}
+
+# 使用块减少变量污染
+fun scoped() i64 {
+    var result: i64 = 0;
+    {
+        var x: i64 = 10;
+        var y: i64 = 20;
+        result = x + y;
+    }
+    # x 和 y 在这里不可访问
+    ret result;
+}
